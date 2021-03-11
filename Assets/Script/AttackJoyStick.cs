@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using System.Collections;
+using System;
 
 /** https://k79k06k02k.pixnet.net/blog/post/114531737?pixfrom=related **/
 //武器跟角色轉向未實行
@@ -12,7 +14,7 @@ using UnityEngine.UI;
 //玩家間有段距離，未攻擊時到距離內 被擊退。格擋時到距離內，被擊退
 //格擋時，往正對 敵人的攻擊方向 左或右 跨步，擊潰敵人的攻擊
 
-public class AttackJoyStick : MonoBehaviour
+public class AttackJoyStick : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
 {
     #region 欄位
     [Header("搖桿")]
@@ -46,19 +48,22 @@ public class AttackJoyStick : MonoBehaviour
     public float armathB;
     //武器本體
     public GameObject arm;
-    //武器碰撞器
+    //刀身
+    public Collider blade;
+    //武器碰撞器，要調整為刀身
     private Collider armRigi;
     [Header("武器活動第三、四象限的角度變數")]
     public float quadrant;
     //左前右後模式
     public int lrmode = 0;
 
-
     //是否觸摸虛擬搖桿
     bool isTouched = true;
 
+    //是否正在攻擊
+     public bool atted = false;
     //武器是否互相碰撞
-    static public bool parry = false;
+     public bool parry = false;
     //碰撞時 上一禎的點
     public Vector2 oldV2Att;
     //碰撞時 當前禎的點
@@ -69,7 +74,8 @@ public class AttackJoyStick : MonoBehaviour
     public AudioSource collideSound;
 
     //武器動畫
-    public Animation anim;
+    public Animation aniX;
+    public Animation aniY;
 
     /// <summary>
     /// 攻擊進入點
@@ -99,32 +105,24 @@ public class AttackJoyStick : MonoBehaviour
     bool blocked;
     #endregion
 
-    public void Start()
+    public void Awake()
     {
         joyStick = GetComponent<GameObject>();
         joyBG = GetComponent<GameObject>();
+        arm= GetComponent<GameObject>();
+        blade = GetComponent<Collider>();
         armRigi = arm.GetComponent<Collider>();
-        anim = GetComponent<Animation>();
+        aniX = GetComponent<Animation>();
+        aniY = GetComponent<Animation>();
         collideSound = GetComponent<AudioSource>();
         //重置搖桿的位置
         joyStick.transform.position = startPos;
+        OnTriggerExit(blade);
+        OnTriggerEnter(blade);
     }
 
     private void Update()
     {
-        //武器互撞事件
-        if (armRigi.isTrigger)
-        {
-            //停住搖桿
-            isTouched = false;
-            //觸發格黨事件
-            Parry();
-            parry = true;
-        }
-        else
-        {
-            isTouched = true;
-        }
         //拔刀禦敵 一段時間後，可 橫砍時間 失效
         if (attCentral > 0)
         {
@@ -136,7 +134,7 @@ public class AttackJoyStick : MonoBehaviour
             }
         }
 
-        //被阻擋，需要一段時間恢復
+        //被阻擋，需要一段時間恢復，被砍手要實用
         if (blocked)
         {
             blockedTime -= Time.deltaTime;
@@ -151,37 +149,48 @@ public class AttackJoyStick : MonoBehaviour
     #region 事件
     //我攻擊後，賦予他 被攻擊 或還有 被阻擋
     #region 攻擊處理,要調整，要觸發
-    private void Attack()
-    {
-        //計算(攻擊長度/30cm)
-        power = Mathf.Abs((enterV3.x - exitV3.x) * (enterV3.y - exitV3.y) * (enterV3.z - exitV3.z) / 30);
-    }
     /// <summary>
     /// 打人的進入點
     /// </summary>
     /// <param name="collision"></param>
-    private void OnTriggerEnter(Collision collision)
+    private void OnTriggerEnter(Collider collision)
     {
         //攻擊到玩家
         if (collision.gameObject.CompareTag("Player"))
         {
-            enterV3 = armRigi.ClosestPoint(arm.transform.position);
+            enterV3 = collision.transform.position;
+            armathB = collision.transform.eulerAngles.y;
+        }
+        //武器互撞事件
+        if (collision.gameObject.CompareTag("arms"))
+        {
+            //停住搖桿
+            isTouched = false;
+            //觸發格黨事件
+            Parry();
+            parry = true;
         }
     }
     /// <summary>
     /// 打人的離開點
     /// </summary>
     /// <param name="collision"></param>
-    private void OnTriggerExit(Collision collision)
+    private void OnTriggerExit(Collider collision)
     {
         //攻擊到玩家
         if (collision.gameObject.CompareTag("Player"))
         {
-            exitV3 = armRigi.ClosestPoint(arm.transform.position);
+            exitV3 = collision.transform.position;
             //給 敵人 bool被攻擊，要實用
             collision.GetType();
+            Attack();
         }
-        Attack();
+    }
+
+    private void Attack()
+    {
+        //計算(攻擊長度/30cm)
+        power = Vector3.Distance(enterV3,exitV3);
     }
     #endregion
 
@@ -193,7 +202,7 @@ public class AttackJoyStick : MonoBehaviour
         //搖桿 跟 碰撞時停住的動畫點 同步
         //搖桿點/最大半徑=動畫點
         //搖桿點=動畫點*最大半徑
-        joyStick.transform.position = new Vector2(anim["x"].normalizedTime * jyRadiu, anim["y"].normalizedTime * jyRadiu);
+        joyStick.transform.position = new Vector2(aniX["右砍"].normalizedTime * jyRadiu, aniY["砍左"].normalizedTime * jyRadiu);
         collideSound.Play();
 
         #region 格黨時 每一楨的向量noV2Att
@@ -244,7 +253,7 @@ public class AttackJoyStick : MonoBehaviour
         return armathA;
     }
 
-    public void OnPointerDown(PointerEventData eventData)
+    public void OnBeginDrag(PointerEventData eventData)
     {
         //被阻擋，需要一段時間恢復
         if (isTouched)
@@ -257,12 +266,12 @@ public class AttackJoyStick : MonoBehaviour
                 if (attCentral > 0)
                 {
                     //點左一段時間內點右，播放橫砍動畫
-                    anim.Play("attCentral");
+                    // anim.Play("attCentral");
                 }
                 else
                 {
                     //播放短距離拔刀動畫，推出 往後收刀鞘 右手砍
-                    anim.Play("attRight");
+                    // anim.Play("attRight");
                 }
                 attCentral = 0;
             }
@@ -270,17 +279,18 @@ public class AttackJoyStick : MonoBehaviour
             if (joyStick.transform.position.y > 0 && joyStick.transform.position.x < 0)
             {
                 attCentral = 1;
-                anim.Play("attLeft");
+                //  anim.Play("attLeft");
             }
             //點擊下面，播放普通拔刀動畫
             if (joyStick.transform.position.y < 0)
             {
-                anim.Play("att");
+                //  anim.Play("att");
             }
             #endregion
         }
     }
-    public void OnMove(PointerEventData eventData)
+
+    public void OnDrag(PointerEventData eventData)
     {
         //搖桿對背景圖中心的距離
         Touch touch = Input.GetTouch(0);
@@ -316,16 +326,27 @@ public class AttackJoyStick : MonoBehaviour
 
                 #region 上下左右揮舞動畫
                 //左右揮舞動畫
-                anim.Play("x");
-                if (newV2.x / jyRadiu - anim["x"].normalizedTime < 0) anim["x"].speed = -1;
-                else if (newV2.x / jyRadiu - anim["x"].normalizedTime > 0) anim["x"].speed = 1;
-                else anim["x"].speed = 0;
+                if (newV2.x / jyRadiu - aniX["砍左"].normalizedTime < 0)
+                {
+                    aniX.Play("砍左");
+                    aniX.Stop("砍右");
+                }
+                else if (newV2.x / jyRadiu - aniX["砍右"].normalizedTime > 0)
+                {
+                    aniX.Play("砍右");
+                    aniX.Stop("砍左");
+                }
+                else
+                {
+                    aniX.Stop("砍左");
+                    aniX.Stop("砍右");
+                }
 
                 //上下揮舞動畫
-                anim.Play("y");
-                if (newV2.y / jyRadiu - anim["y"].normalizedTime < 0) anim["y"].speed = -1;
-                else if (newV2.y / jyRadiu - anim["y"].normalizedTime > 0) anim["y"].speed = 1;
-                else anim["y"].speed = 0;
+                aniY.Play("劈");
+                if (newV2.y / jyRadiu - aniY["劈"].normalizedTime < 0) aniY["劈"].speed = 1;
+                else if (newV2.y / jyRadiu - aniY["劈"].normalizedTime > 0) aniY["劈"].speed = -1;
+                else aniY["劈"].speed = 0;
                 #endregion
 
                 #region Atan2的xy為0,返回正確的角度,而不是拋出被0除的異常
@@ -376,16 +397,19 @@ public class AttackJoyStick : MonoBehaviour
 
                 if (newDeg > oldDeg)
                 {
-                    anim["rl"].speed = 1;
-                    anim["lr"].speed = 1;
+                    //   anim["rl"].speed = 1;
+                    //   anim["lr"].speed = 1;
                 }
                 if (newDeg < oldDeg)
                 {
-                    anim["rl"].speed = -1;
-                    anim["lr"].speed = -1;
+                    //    anim["rl"].speed = -1;
+                    //    anim["lr"].speed = -1;
                 }
                 #endregion
 
+                arm.transform.eulerAngles += new Vector3(0, 0, armath);
+
+                /**
                 #region 前臂動畫，要測試
                 //武器旋轉的角度armath
                 //武器旋轉的角度轉成0~1給前臂以下的動畫
@@ -453,14 +477,15 @@ public class AttackJoyStick : MonoBehaviour
                     arm.transform.right = Vector2.zero;
                 }
                 #endregion
+                **/
             }
         }
     }
-    public void OnPointerUp(PointerEventData eventData)
+    public void OnEndDrag(PointerEventData eventData)
     {
         joyStick.transform.position = startPos;
         //最優先 播放收刀動畫，優先層級要調整
-        anim.Play("atted");
+        // ani.Play("atted");
     }
     #endregion
 

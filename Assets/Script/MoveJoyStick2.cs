@@ -53,7 +53,7 @@ public class MoveJoyStick2 : MonoBehaviour
     //未移動被玩家撞時，發呆
     float dazeTime;
 
-    //玩家自己的攝影機 視角
+    [Header("玩家自己的攝影機 視角")]
     public Camera playerAC;
     [Header("cameraX")]
     float cameraX = 0;
@@ -72,7 +72,7 @@ public class MoveJoyStick2 : MonoBehaviour
     //偏移量
     public Vector3 offset;
 
-    //頓下的時間
+    //蹲下的時間
     float squatTime;
 
     //最大生命
@@ -85,7 +85,7 @@ public class MoveJoyStick2 : MonoBehaviour
     {
         anim = GetComponent<Animator>();
         playerAC = GameObject.Find("PlayerACamera").GetComponent<Camera>();
-        playerA = GameObject.Find("remy@Withdrawing Sword").GetComponent<Rigidbody>();
+        playerA = GameObject.Find("PlayerA").GetComponent<Rigidbody>();
         joyBG = GameObject.Find("JoyStickBackGround");
         joyStick = GameObject.Find("JoyStick");
     }
@@ -412,7 +412,7 @@ public class MoveJoyStick2 : MonoBehaviour
         if (mode == 1)
         {
             //格擋時不能移動，並且有 敵人的攻擊角度armathB
-            if (AttackJoyStick.parry)
+            if (playerA.GetComponent<AttackJoyStick>().parry)
             {
                 if (speed == 0)
                 {
